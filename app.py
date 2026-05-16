@@ -11,7 +11,7 @@ def home():
         "service": "Backend Assessment API",
         "endpoints": [
             "/api/v1/schedule",
-            "/api/v1/priority-inbox"
+            "/api/v1/notifications/priority"
         ]
     })
 
@@ -25,7 +25,7 @@ def schedule():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-@app.route("/api/v1/priority-inbox")
+@app.route("/api/v1/notifications/priority")
 def priority_inbox():
     top_10 = extract_top(sample_feed, count=10)
     output = []
