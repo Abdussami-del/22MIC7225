@@ -2,13 +2,12 @@ import os
 import requests
 
 SERVICE_BASE = "http://4.224.186.213/evaluation-service"
+
 TOKEN = os.environ.get("API_TOKEN", "")
 
 
 def _headers():
-    if TOKEN:
-        return {"Authorization": f"Bearer {TOKEN}"}
-    return {}
+    return {"Authorization": f"Bearer {TOKEN}"} if TOKEN else {}
 
 
 def pull_depots():
@@ -57,37 +56,11 @@ def knapsack_optimize(capacity, job_list):
     return best_val, picked
 
 
-def display_results(depot_info, optimal_val, chosen_jobs):
-    label = depot_info.get("DepotName", depot_info.get("Name", "Unknown"))
-    budget = depot_info.get("MechanicHours", 0)
-    print("=" * 65)
-    print(f"  Depot : {label}")
-    print(f"  Available Mechanic Hours : {budget}")
-    print(f"  Maximum Impact Achieved  : {optimal_val}")
-    print("-" * 65)
-    print(f"  {'TaskID':<12} {'Duration (hrs)':<18} {'Impact':<10}")
-    print("-" * 65)
-    consumed = 0
-    for entry in chosen_jobs:
-        tid = str(entry.get("TaskID", "N/A"))
-        print(f"  {tid:<12} {entry['Duration']:<18} {entry['Impact']:<10}")
-        consumed += entry["Duration"]
-    print("-" * 65)
-    print(f"  Total tasks selected : {len(chosen_jobs)}")
-    print(f"  Total hours consumed : {consumed}")
-    print("=" * 65)
-    print()
-
-
-def execute():
-    print("\n[*] Fetching depot data ...")
+def build_schedule():
     all_depots = pull_depots()
-    print(f"[*] Found {len(all_depots)} depot(s).\n")
-
-    print("[*] Fetching vehicle task data ...")
     all_tasks = pull_vehicles()
-    print(f"[*] Found {len(all_tasks)} task(s).\n")
 
+    output = []
     for depot in all_depots:
         budget = depot.get("MechanicHours", 0)
         d_id = depot.get("DepotID", depot.get("Id", None))
@@ -101,8 +74,38 @@ def execute():
             relevant = list(all_tasks)
 
         best, selection = knapsack_optimize(budget, relevant)
-        display_results(depot, best, selection)
+
+        consumed = sum(t["Duration"] for t in selection)
+        task_ids = [t.get("TaskID", t.get("Id", "N/A")) for t in selection]
+
+        output.append({
+            "depot": depot.get("DepotName", depot.get("Name", "Unknown")),
+            "mechanic_hours": budget,
+            "max_impact": best,
+            "hours_used": consumed,
+            "tasks_selected": len(selection),
+            "task_ids": task_ids,
+            "details": selection
+        })
+
+    return output
 
 
 if __name__ == "__main__":
-    execute()
+    results = build_schedule()
+    for r in results:
+        print("=" * 65)
+        print(f"  Depot : {r['depot']}")
+        print(f"  Available Mechanic Hours : {r['mechanic_hours']}")
+        print(f"  Maximum Impact Achieved  : {r['max_impact']}")
+        print("-" * 65)
+        print(f"  {'TaskID':<12} {'Duration (hrs)':<18} {'Impact':<10}")
+        print("-" * 65)
+        for t in r["details"]:
+            tid = str(t.get("TaskID", t.get("Id", "N/A")))
+            print(f"  {tid:<12} {t['Duration']:<18} {t['Impact']:<10}")
+        print("-" * 65)
+        print(f"  Total tasks selected : {r['tasks_selected']}")
+        print(f"  Total hours consumed : {r['hours_used']}")
+        print("=" * 65)
+        print()
